@@ -23,7 +23,7 @@ def thomas(n, l, d, u, b):
 
 def gaussElimination(n, A, b):
     for k in range(n-1):
-        max_ind = abs(A[k:, k]).argmax() + k
+        max_ind = np.argmax(abs(A[k:, k])) + k
         if A[max_ind, k] == 0:
             return None
         if max_ind != k:
@@ -42,16 +42,102 @@ def gaussElimination(n, A, b):
     return x
 
 def cholesky(n, A, b):
-    return
+    swaps = []
+    L = np.zeros((n, n))
+    for k in range(n):
+        max_r_ind , max_c_ind = np.unravel_index(np.argmax(abs(A[k:, k:])), A[k:, k:].shape)
+        max_r_ind += k
+        max_c_ind += k
+        if A[max_r_ind, max_c_ind] == 0:
+            return None
+        if max_r_ind != k:
+            swaps.append(['r', k, max_r_ind])
+            A[[max_r_ind, k]] = A[[k, max_r_ind]]
+            b[[max_r_ind, k]] = b[[k, max_r_ind]]
+        if max_c_ind != k:
+            swaps.append(['c', k, max_c_ind])
+            A[:, [max_c_ind, k]] = A[:, [k, max_r_ind]]
+        L[k, k] = A[k, k]
+        for m in range(k-1):
+            L[k, k] -= np.power(A[m, k], 2)
+        L[k, k] = np.power(L[k, k], 0.5)
+        for row in range(k+1, n):
+            L[row, k] = A[row, k]
+            for m in range(k-1):
+                L[row, k] -= L[row, m] * L[k, m]
+            L[row, k] = L[row, k] / L[k, k]
+    return L, swaps
 
 def doolittle(n, A, b):
-    return
+    swaps = []
+    L = np.identity(n, dtype=float)
+    U = np.zeros((n, n))
+    for k in range(n):
+        max_r_ind, max_c_ind = np.unravel_index(np.argmax(abs(A[k:, k:])), A[k:, k:].shape)
+        max_r_ind += k
+        max_c_ind += k
+        if A[max_r_ind, max_c_ind] == 0:
+            return None
+        if max_r_ind != k:
+            swaps.append(['r', k, max_r_ind])
+            A[[max_r_ind, k]] = A[[k, max_r_ind]]
+            b[[max_r_ind, k]] = b[[k, max_r_ind]]
+        if max_c_ind != k:
+            swaps.append(['c', k, max_c_ind])
+            A[:, [max_c_ind, k]] = A[:, [k, max_c_ind]]
+        for col in range(n):
+            if k > col:
+                L[k, col] = A[k, col]
+                for m in range(col-1):
+                    L[k, col] -= L[k, m] * U[m, col]
+                L[k, col] = L[k, col] / U[col, col]
+            else:
+                U[k, col] = A[k, col]
+                for m in range(k-1):
+                    U[k, col] -= L[k, m] * U[m, col]
+    return L, U, swaps
 
 def crout(n, A, b):
-    return
+    swaps = []
+    L = np.zeros((n, n))
+    U = np.identity(n, dtype=float)
+    for k in range(n):
+        max_r_ind, max_c_ind = np.unravel_index(np.argmax(abs(A[k:, k:])), A[k:, k:].shape)
+        max_r_ind += k
+        max_c_ind += k
+        if A[max_r_ind, max_c_ind] == 0:
+            return None
+        if max_r_ind != k:
+            swaps.append(['r', k, max_r_ind])
+            A[[max_r_ind, k]] = A[[k, max_r_ind]]
+            b[[max_r_ind, k]] = b[[k, max_r_ind]]
+        if max_c_ind != k:
+            swaps.append(['c', k, max_c_ind])
+            A[:, [max_c_ind, k]] = A[:, [k, max_c_ind]]
+        for col in range(n):
+            if k >= col:
+                L[k, col] = A[k, col]
+                for m in range(col-1):
+                    L[k, col] -= L[k, m] * U[m, col]
+            else:
+                U[k, col] = A[k, col]
+                for m in range(k-1):
+                    U[k, col] -= L[k, m] * U[m, col]
+                U[k, col] = U[k, col] / L[k, k]
+    return L, U, swaps
 
 def gaussJordon (n, A):
-    return
+    Aug = np.append(A, np.identity(n), axis=1)
+    for k in range(n):
+        for j in range(k, 2 * n):
+            Aug[k, j] = Aug[k, j] / Aug[k, k]
+        for i in range(n):
+            if i == k:
+                continue
+            for j in range(k, 2 * n):
+                Aug[i, j] -= Aug[i, k] * Aug[k, j]
+    A_Inv = Aug[:, n:]
+    return A_Inv
 
 def takeInput():
     print('A. Solve a System  of Equation')
@@ -79,52 +165,82 @@ def takeInput():
             n = int(lines[0])
             A = np.array([])
             for i in range(n):
-                A = np.append(A, [float(n) for n in lines[i + 1].split()], axis=0)
-            A = A.reshape((3, 3))
+                A = np.append(A, [float(l) for l in lines[i + 1].split()], axis=0)
+            A = A.reshape((n, n))
             b = np.array([float(l) for l in lines[n + 1].split()])
             x = gaussElimination(n, A, b)
             print(x)
             with open('out_' + fn, 'w+') as f:
                 for i in range(n):
                     f.write(str(x[i])+"\n")
-    if method == 'B':
+    elif method == 'B':
         opt = input('Is the matrix symmetric and positive definite? (Y/N) : ').upper()
         if opt == 'Y':
-            lines = fileInput()
+            fn, lines = fileInput()
             n = int(lines[0])
             A = np.array([])
             for i in range(n):
-                A = np.append(A, [float(n) for n in lines[i + 1].split()], axis=0)
-            A = A.reshape((3, 3))
+                A = np.append(A, [float(l) for l in lines[i + 1].split()], axis=0)
+            A = A.reshape((n, n))
             b = np.array([float(l) for l in lines[n + 1].split()])
-            cholesky(n, A, b)
+            L, swaps = cholesky(n, A, b)
+            print(L)
+            with open('out_' + fn, 'w+') as f:
+                for i in range(n):
+                    for j in range(n):
+                        f.write(str(L[i, j])+"\t")
+                    f.write("\n")
+                f.write("\n")
+                for swap in swaps:
+                    f.write(swap[0] + str(swap[1]+1) + "\t" + swap[0] + str(swap[2]+1) + "\n")
         elif opt == 'N':
-            lines = fileInput()
+            fn, lines = fileInput()
             print()
             print('A. Doolittle')
             print('B. Crout')
             algo = input('Choose one of the above algorithms : ').upper()
             n = int(lines[0])
-            A = []
+            A = np.array([])
             for i in range(n):
-                A = A.append([float(l) for l in lines[i + 1].split()])
-            b = [float(l) for l in lines[n + 1].split()]
+                A = np.append(A, [float(l) for l in lines[i + 1].split()], axis=0)
+            A = A.reshape((n, n))
+            b = np.array([float(l) for l in lines[n + 1].split()])
             if algo == 'A':
-                doolittle(n, A, b)
+                L, U, swaps = doolittle(n, A, b)
             elif algo == 'B':
-                crout(n, A, b)
+                L, U, swaps = crout(n, A, b)
+            print(L)
+            print()
+            print(U)
+            with open('out_' + fn, 'w+') as f:
+                f.write("L\n")
+                for i in range(n):
+                    for j in range(n):
+                        f.write(str(L[i, j])+"\t")
+                    f.write("\n")
+                f.write("\n")
+                f.write("U\n")
+                for i in range(n):
+                    for j in range(n):
+                        f.write(str(U[i, j])+"\t")
+                    f.write("\n")
+                f.write("\n")
+                for swap in swaps:
+                    f.write(swap[0] + str(swap[1]+1) + "\t" + swap[0] + str(swap[2]+1) + "\n")
     elif method == 'C':
-        lines = fileInput()
+        fn, lines = fileInput()
         n = int(lines[0])
-        A = []
+        A = np.array([])
         for i in range(n):
-            A.append([float(l) for l in lines[i + 1].split()])
-        gaussJordon(n, A)
-
-
-
-
-            
+            A = np.append(A, [float(l) for l in lines[i + 1].split()], axis=0)
+        A = A.reshape((n, n))
+        A_Inv = gaussJordon(n, A)
+        print(A_Inv)
+        with open('out_' + fn, 'w+') as f:
+            for i in range(n):
+                for j in range(n):
+                    f.write(str(A_Inv[i, j])+"\t")
+                f.write("\n")
 
 if __name__ == '__main__':
     takeInput()
